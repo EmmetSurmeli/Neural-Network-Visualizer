@@ -1,0 +1,14 @@
+import {Download, Terminal} from 'lucide-react';
+import type {Trace} from '../types';
+export default function Output({trace, stale}: {trace: Trace | null; stale: boolean}) {
+  const classes = trace?.probabilities?.map((value, index) => ({value, index}));
+  const visibleClasses = classes && classes.length > 20 ? [...classes].sort((a, b) => b.value - a.value).slice(0, 20) : classes;
+  function download() {const url = URL.createObjectURL(new Blob([JSON.stringify(trace, null, 2)], {type: 'application/json'})); const a = document.createElement('a'); a.href = url; a.download = 'neuralscope-trace.json'; a.click(); URL.revokeObjectURL(url);}
+  return <section className="output-panel panel"><div className="panel-heading"><div><Terminal size={15}/><h2>Model output</h2>{stale && <span className="stale">Input changed · run again</span>}</div><button className="text-button" onClick={download} disabled={!trace}><Download size={13}/> Export trace</button></div>
+    {trace ? <><div className="output-body"><div className="prediction"><span className="eyebrow">{trace.probabilities ? 'PREDICTED CLASS' : 'OUTPUT TENSOR'}</span><div><strong>{trace.predicted_class ?? `[${trace.output.length}]`}</strong>{trace.probabilities && <span><b className="accent mono">{(Math.max(...trace.probabilities) * 100).toFixed(2)}%</b><small>model probability</small></span>}</div></div>
+      {visibleClasses ? <div className="probabilities" aria-label={classes && classes.length > 20 ? 'Top 20 classes by probability' : 'Class probabilities'}>{visibleClasses.map(({value, index: i}) => <div key={i} className={`probability ${trace.predicted_class === i ? 'winner' : ''}`}><span className="mono">{(value * 100).toFixed(1)}%</span><div><i style={{height: `${Math.max(2, value * 100)}%`}}/></div><b className="mono">{i}</b></div>)}</div> : <div className="raw-vector mono">{JSON.stringify(trace.output.map(x => Number(x.toFixed(5))))}</div>}</div>
+      {classes && classes.length > 20 && <p className="tiny muted" style={{padding: '0 28px 12px'}}>Showing the top 20 of {classes.length} classes. Export the trace for all probabilities.</p>}
+      <details className="raw-output"><summary>Raw output & execution trace <span className="mono">{trace.layers.length} layers · {trace.elapsed_ms.toFixed(2)} ms</span></summary><pre>{JSON.stringify({output: trace.output, trace_id: trace.trace_id, execution: trace.layers.map(l => ({name: l.name, type: l.type, input: l.input_shape, output: l.output_shape}))}, null, 2)}</pre></details>
+    </> : <p className="output-empty">Class probabilities will appear here after your first forward pass.</p>}
+  </section>;
+}

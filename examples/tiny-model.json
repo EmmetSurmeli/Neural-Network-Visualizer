@@ -1,0 +1,10 @@
+{
+  "name": "Tiny MLP · 3 inputs",
+  "input_features": 3,
+  "layers": [
+    {"type": "Linear", "weight": [[1, 0.5, -1], [-0.5, 1, 0.5], [0.25, -1, 1], [1, 1, 1]], "bias": [0.1, 0, -0.2, -1]},
+    {"type": "ReLU"},
+    {"type": "Linear", "weight": [[1, -1, 0.5, 0.25], [-0.5, 1, -0.25, 0.5]], "bias": [0, 0.1]},
+    {"type": "Softmax"}
+  ]
+}
