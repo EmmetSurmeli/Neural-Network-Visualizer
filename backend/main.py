@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.models.demo import load_demo, metadata, samples
 from backend.instrumentation.trace import run_trace, neuron_details
 from backend.schemas.requests import ModelSpec, RunRequest
-from backend.services.models import from_spec
+from backend.services.models import from_spec, summarize_spec
 
 torch.set_num_threads(2)
 app = FastAPI(title='NeuralScope', version='1.0.0')
@@ -91,7 +91,8 @@ def upload_model(spec: ModelSpec):
             raise HTTPException(422, str(exc)) from exc
         model_id = str(uuid4())
         info = {'id': model_id, 'name': spec.name, 'input_features': spec.input_features,
-                'parameters': sum(p.numel() for p in model.parameters()), 'dataset': 'Imported JSON'}
+                'parameters': sum(p.numel() for p in model.parameters()), 'dataset': 'Imported JSON',
+                'architecture': summarize_spec(spec)}
         models[model_id] = (model, info)
         return info
 

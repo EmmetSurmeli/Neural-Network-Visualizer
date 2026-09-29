@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
-import {ArrowRight, Braces, Eraser, FileUp, LoaderCircle, Play, RefreshCw} from 'lucide-react';
+import {ArrowRight, Braces, CircleHelp, Eraser, FileUp, LoaderCircle, Play, RefreshCw} from 'lucide-react';
 import {api} from './services/api';
 import type {Model, Sample, Trace, NeuronSelection} from './types';
 import DigitCanvas from './components/DigitCanvas';
@@ -7,6 +7,7 @@ import Network from './components/Network';
 import Inspector from './components/Inspector';
 import Output from './components/Output';
 import usePlayback from './hooks/usePlayback';
+import ImportGuide from './components/ImportGuide';
 
 export default function App() {
   const [models, setModels] = useState<Model[]>([]), [samples, setSamples] = useState<Sample[]>([]), [modelId, setModelId] = useState('mnist-mlp');
@@ -19,6 +20,7 @@ export default function App() {
   const selectLayer = (index: number) => {setSelected(index); setNeuron(null);};
   const inspectNeuron = (layer: number, index: number) => {setSelected(layer); setNeuron({layer, index, key: Date.now()});};
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState(''), [stale, setStale] = useState(false);
+  const [showImportGuide, setShowImportGuide] = useState(false);
   const file = useRef<HTMLInputElement>(null), model = models.find(m => m.id === modelId);
   const tinyModelId = useRef<string | null>(null);
   async function initialize() {
@@ -54,17 +56,18 @@ export default function App() {
   return <div className="app-shell">
     <header className="topbar"><a className="brand" href="/" aria-label="NeuralScope home">NeuralScope</a><span className="header-title">Neural network explorer</span><span className="engine">{loading ? 'Loading model…' : models.length ? 'PyTorch / CPU' : 'Backend offline'}</span></header>
     <main>
-      <div className="model-toolbar"><div className="model-select"><label>Model<select aria-label="Active model" value={modelId} disabled={busy || loading} onChange={e => switchModel(e.target.value)}>{models.length ? models.map(m => <option key={m.id} value={m.id}>{m.name}</option>) : <option>Connecting to backend…</option>}</select></label></div><div className="model-badges"><span className="mono">{model?.input_features ?? 784} inputs</span><span className="mono">{model?.parameters.toLocaleString() ?? '—'} params</span></div><input type="file" accept=".json,application/json" ref={file} hidden onChange={e => void upload(e.target.files?.[0])}/><button className="secondary-button import-button" disabled={busy || loading} onClick={() => file.current?.click()}><FileUp size={15}/> Import model</button></div>
+      <div className="model-toolbar"><div className="model-select"><label>Model<select aria-label="Active model" value={modelId} disabled={busy || loading} onChange={e => switchModel(e.target.value)}>{models.length ? models.map(m => <option key={m.id} value={m.id}>{m.name}</option>) : <option>Connecting to backend…</option>}</select></label></div><div className="model-badges"><span className="mono">{model?.input_features ?? 784} inputs</span><span className="mono">{model?.parameters.toLocaleString() ?? '—'} params</span></div><div className="import-actions"><button className="text-button format-button" onClick={() => setShowImportGuide(true)}><CircleHelp size={14}/> Format</button><input type="file" accept=".json,application/json" ref={file} hidden onChange={e => void upload(e.target.files?.[0])}/><button className="secondary-button import-button" disabled={busy || loading} onClick={() => file.current?.click()}><FileUp size={15}/> Import model</button></div></div>
       {error && <div className="error-banner" role="alert"><span>{error}</span>{!models.length && <button onClick={() => void initialize()}><RefreshCw size={14}/> Retry connection</button>}<button aria-label="Dismiss error" onClick={() => setError('')}>×</button></div>}
       <div className="workspace-grid"><aside className="input-panel panel"><div className="panel-heading"><h2>Input</h2><span className="tag">{modelId === 'mnist-mlp' ? '28 × 28' : 'FLOAT32'}</span></div>
         <div className="input-content"><div className="tabs input-tabs"><button disabled={modelId !== 'mnist-mlp' || busy} onClick={() => {setMode('draw'); setStale(!!trace);}} className={mode === 'draw' ? 'active' : ''}>Digit canvas</button><button disabled={busy} onClick={() => {if (modelId === 'mnist-mlp') setRaw(JSON.stringify(pixels)); setMode('raw'); setStale(!!trace);}} className={mode === 'raw' ? 'active' : ''}><Braces size={12}/> Numeric input</button></div>
-          {mode === 'draw' ? <><div className={`drawing-wrap ${busy ? 'disabled' : ''}`}><DigitCanvas source={source} onChange={p => changeInput(p, null)}/><span className="canvas-coordinate">0,0</span><span className="canvas-label">{sample === null ? 'Drawing' : `Sample ${sample}`}</span></div><div className="canvas-caption"><span>Draw a single digit, 0–9</span><button disabled={busy} className="text-button" onClick={() => {const p = Array(784).fill(0); setSource(p); changeInput(p, null);}}><Eraser size={13}/> Clear</button></div><div className="section-label sample-label">Samples <span>MNIST</span></div><div className="sample-buttons">{samples.map(s => <button disabled={busy} aria-label={`Load sample digit ${s.label}`} aria-pressed={sample === s.label} className={sample === s.label ? 'active' : ''} key={s.label} onClick={() => chooseSample(s)}>{s.label}</button>)}</div></> : <><label className="raw-label" htmlFor="numeric">JSON array · {model?.input_features} values</label><textarea id="numeric" className="numeric-input mono" spellCheck={false} value={raw} disabled={busy} onChange={e => {setRaw(e.target.value); setStale(!!trace); setPlaying(false);}}/><p className="tiny muted">{modelId === 'mnist-mlp' ? '784 pixels, row by row. Black = 0; white = 1.' : 'Use a flat array, for example [1, 0.5, -1] for the three-input model.'}</p></>}
+          {mode === 'draw' ? <><div className={`drawing-wrap ${busy ? 'disabled' : ''}`}><DigitCanvas source={source} onChange={p => changeInput(p, null)}/><span className="canvas-coordinate">0,0</span><span className="canvas-label">{sample === null ? 'Drawing' : `Sample ${sample}`}</span></div><div className="canvas-caption"><span>Draw a single digit, 0–9</span><button disabled={busy} className="text-button" onClick={() => {const p = Array(784).fill(0); setSource(p); changeInput(p, null);}}><Eraser size={13}/> Clear</button></div><div className="section-label sample-label">Samples <span>MNIST</span></div><div className="sample-buttons">{samples.map(s => <button disabled={busy} aria-label={`Load sample digit ${s.label}`} aria-pressed={sample === s.label} className={sample === s.label ? 'active' : ''} key={s.label} onClick={() => chooseSample(s)}>{s.label}</button>)}</div></> : <><label className="raw-label" htmlFor="numeric">JSON array · {model?.input_features} values</label><textarea id="numeric" className="numeric-input mono" spellCheck={false} value={raw} disabled={busy} onChange={e => {setRaw(e.target.value); setStale(!!trace); setPlaying(false);}}/><p className="tiny muted">{modelId === 'mnist-mlp' ? '784 pixels, row by row. Black = 0; white = 1.' : `Enter exactly ${model?.input_features ?? 0} finite numbers in one flat array.`}</p></>}
           <button className="run-button" disabled={busy || loading || !model} onClick={() => void run()}>{busy ? <LoaderCircle size={16} className="spin"/> : <Play size={15} fill="currentColor"/>}{busy ? 'Running…' : 'Run forward pass'}<ArrowRight size={16}/></button>
-          <div className="model-info"><dl><div><dt>Layers</dt><dd className="mono">{modelId === 'mnist-mlp' ? '784 → 128 → 64 → 10' : `${model?.input_features} inputs`}</dd></div>{model?.test_accuracy && <div><dt>Test accuracy</dt><dd className="mono">{(model.test_accuracy * 100).toFixed(2)}%</dd></div>}</dl></div>
+          <div className="model-info"><dl><div><dt>Layers</dt><dd className="mono">{model?.architecture ?? (modelId === 'mnist-mlp' ? '784 → 128 → 64 → 10' : `${model?.input_features} inputs`)}</dd></div>{model?.test_accuracy && <div><dt>Test accuracy</dt><dd className="mono">{(model.test_accuracy * 100).toFixed(2)}%</dd></div>}</dl></div>
           <button className="tiny-demo" disabled={busy || loading} onClick={() => void tinyDemo()}>3-input example <span>↗</span></button>
         </div>
       </aside><Network trace={trace} selected={selected} select={selectLayer} playback={playback} neuron={neuron} inspectNeuron={inspectNeuron} stale={stale}/></div>
       <div className="detail-grid"><Inspector trace={trace} selected={selected} focusedNeuron={neuron}/><Output trace={trace} stale={stale}/></div>
+      <ImportGuide open={showImportGuide} close={() => setShowImportGuide(false)}/>
     </main>
   </div>;
 }

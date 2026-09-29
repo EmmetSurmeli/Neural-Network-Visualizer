@@ -16,7 +16,7 @@ Open **http://127.0.0.1:8000**. The script installs missing dependencies, builds
 
 1. **Digit demo:** sample **7** is preloaded. Click **Run forward pass**. The supplied sample predicts **7**, with approximately **99.73%** probability. Click `fc1` and then **Neuron explorer** to inspect input contributions. Presets for all ten digits are included.
 2. **Your drawing:** click **Clear**, draw one digit, then run. Drawings are cropped, scaled to a 20-pixel bounding box, centered by their center of mass in a 28×28 image, and normalized to `[0,1]`. Recognition may fail for unusual handwriting; try the presets to verify the pipeline.
-3. **Small numeric example:** click **Try a tiny 3-input model**. The input is prefilled with **`[1, 0.5, -1]`**. Run it: class **0** has about **96.85%** probability. Its first Linear layer outputs `[2.35, -0.5, -1.45, -0.5]`; ReLU produces `[2.35, 0, 0, 0]`. This is useful for checking the arithmetic by hand.
+3. **Small numeric example:** click **3-input example**. The input is prefilled with **`[1, 0.5, -1]`**. Run it: class **0** has about **96.85%** probability. Its first Linear layer outputs `[2.35, -0.5, -1.45, -0.5]`; ReLU produces `[2.35, 0, 0, 0]`. This is useful for checking the arithmetic by hand.
 4. **API example:**
 
 ```bash
@@ -84,7 +84,13 @@ To retrain (downloads about 12 MB on the first run):
 
 ### Import your model
 
-V1 imports a **JSON description of a Sequential model with numeric weights and biases**, such as `examples/tiny-model.json`. Click **Import model**, choose the JSON file, and enter a flat numeric array of the indicated size. Imported outputs are labeled as probabilities only if the last layer is Softmax; otherwise the raw output vector is shown.
+V1 imports a **JSON description of a Sequential model with numeric weights and biases**, such as `examples/tiny-model.json`. Click **Format** in the model toolbar to see the schema and download two more examples, then click **Import model** to choose the JSON file. Imported models display their reconstructed architecture and accept a flat numeric array of the indicated size. Outputs are labeled as probabilities only if the last layer is Softmax; otherwise the raw output vector is shown.
+
+The checked examples deliberately cover different structures:
+
+- `examples/tiny-model.json`: ReLU classifier, `3 → 4 → 2 → Softmax`.
+- `examples/xor-model.json`: two hidden Sigmoid stages and a one-value raw output. Inputs `[0,1]` and `[1,0]` produce about `0.992356`; `[0,0]` and `[1,1]` produce about `0.007153`.
+- `examples/tanh-classifier.json`: `4 → 5 → Tanh → Dropout → 3 → Softmax`. Dropout is intentionally disabled during inference.
 
 Supported layers: `Linear`, `ReLU`, `Sigmoid`, `Tanh`, `Softmax` (last dimension), `Dropout` (disabled in evaluation mode), and default `Flatten`. Linear weights are shaped `[output_features, input_features]`; omitted/null bias means no bias. Layer dimensions are validated.
 
@@ -136,7 +142,7 @@ Open **http://127.0.0.1:5173**; Vite proxies `/api` to FastAPI. In production mo
 cd frontend && npm run build
 ```
 
-Tests cover all digit presets, hook order/cleanup/restoration, failed-inference cleanup, tensor summaries, population statistics, exact neuron arithmetic, activation types, inference-mode Dropout, health/forward APIs, JSON import validation, dimension/non-finite validation, expired traces, request-size limits, and faithful/bounded neuron diagram data. The frontend build includes strict TypeScript checking. The browser flow was checked with digit 7 and the three-input example, neuron selection, moving signals, exact pause/resume behavior, and Linear-to-ReLU step transitions.
+Tests cover all digit presets, hook order/cleanup/restoration, failed-inference cleanup, tensor summaries, population statistics, exact neuron arithmetic, activation types, inference-mode Dropout, health/forward APIs, JSON import validation, dimension/non-finite validation, expired traces, request-size limits, faithful/bounded neuron diagram data, XOR/Sigmoid behavior, Tanh/Dropout/Softmax inference, raw regression output, and exact export/import parity for a real PyTorch Sequential model. The frontend build includes strict TypeScript checking. The browser flow was checked with digit 7 and imported examples, neuron selection, moving signals, exact pause/resume behavior, and Linear-to-ReLU step transitions.
 
 ## Known limitations and next steps
 

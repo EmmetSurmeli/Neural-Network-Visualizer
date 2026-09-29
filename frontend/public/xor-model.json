@@ -1,0 +1,10 @@
+{
+  "name": "XOR · Sigmoid network",
+  "input_features": 2,
+  "layers": [
+    {"type": "Linear", "weight": [[10, 10], [-10, -10]], "bias": [-5, 15]},
+    {"type": "Sigmoid"},
+    {"type": "Linear", "weight": [[10, 10]], "bias": [-15]},
+    {"type": "Sigmoid"}
+  ]
+}

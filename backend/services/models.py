@@ -33,3 +33,14 @@ def from_spec(spec: ModelSpec):
             module = constructors[layer.type]()
         layers.append(module)
     return nn.Sequential(*layers).eval()
+
+def summarize_spec(spec: ModelSpec):
+    width = spec.input_features
+    parts = [str(width)]
+    for layer in spec.layers:
+        if layer.type == 'Linear' and layer.weight:
+            width = len(layer.weight)
+            parts.append(str(width))
+        elif layer.type not in ('Flatten', 'Dropout'):
+            parts.append(layer.type)
+    return ' → '.join(parts)
