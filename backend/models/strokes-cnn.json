@@ -1,0 +1,26 @@
+{
+  "id": "strokes-cnn",
+  "name": "Line orientation \u00b7 CNN",
+  "input_features": 784,
+  "input_shape": [
+    1,
+    28,
+    28
+  ],
+  "input_kind": "image",
+  "classes": [
+    "Horizontal",
+    "Vertical",
+    "Diagonal"
+  ],
+  "parameters": 26467,
+  "dataset": "Synthetic strokes",
+  "architecture": "Conv 8 \u2192 Pool \u2192 Conv 16 \u2192 Pool \u2192 32 \u2192 3",
+  "test_accuracy": 1.0,
+  "description": "Trained on generated lines at three orientations.",
+  "training_samples": 1800,
+  "test_samples": 600,
+  "epochs": 15,
+  "training_seed": 42,
+  "test_seed": 4042
+}

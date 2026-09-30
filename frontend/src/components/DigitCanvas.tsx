@@ -25,7 +25,7 @@ export function normalizedPixels(canvas: HTMLCanvasElement): number[] {
   return result;
 }
 
-export default function DigitCanvas({source, onChange}: {source: number[]; onChange: (pixels: number[]) => void}) {
+export default function DigitCanvas({source, onChange, label}: {label?: string; source: number[]; onChange: (pixels: number[]) => void}) {
   const ref = useRef<HTMLCanvasElement>(null);
   const down = useRef(false);
   useEffect(() => {
@@ -42,5 +42,5 @@ export default function DigitCanvas({source, onChange}: {source: number[]; onCha
   }
   function move(e: PointerEvent<HTMLCanvasElement>) {if (!down.current) return; const ctx = e.currentTarget.getContext('2d')!; const [x, y] = point(e); ctx.lineTo(x, y); ctx.stroke();}
   function end(e: PointerEvent<HTMLCanvasElement>) {if (!down.current) return; down.current = false; onChange(normalizedPixels(e.currentTarget));}
-  return <canvas ref={ref} width={280} height={280} onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end} className="drawing-canvas" aria-label="Draw a digit from zero to nine. You can also use the sample buttons below." />;
+  return <canvas ref={ref} width={280} height={280} onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end} className="drawing-canvas" aria-label={label ?? "Draw a digit from zero to nine. You can also use the sample buttons below."} />;
 }

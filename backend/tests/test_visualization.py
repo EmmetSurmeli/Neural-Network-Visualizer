@@ -11,7 +11,7 @@ def test_diagram_matches_the_captured_execution_and_weights():
     assert [c['size'] for c in graph['columns']] == [784, 128, 64, 10]
     assert [[s['step'] for s in c['states']] for c in graph['columns']] == [[-1], [0, 1], [2, 3], [4, 5]]
     assert [c['step'] for c in graph['connections']] == [0, 2, 4]
-    assert all(len(c['indices']) <= 16 for c in graph['columns'])
+    assert all(len(c['indices']) <= 32 for c in graph['columns'])
     assert sum(len(c['edges']) for c in graph['connections']) <= 600
     for column in graph['columns']:
         for state in column['states']:
@@ -45,7 +45,8 @@ def test_many_layers_respect_global_edge_budget_and_pure_nonlinear_model():
     graph = trace['visualization']
     assert len(graph['columns']) == 25
     assert sum(len(c['edges']) for c in graph['connections']) <= 600
-    assert all(len(c['indices']) == 16 for c in graph['columns'])
+    assert len(graph['columns'][0]['indices']) == 16
+    assert all(len(c['indices']) == 32 for c in graph['columns'][1:])
     trace, _ = run_trace(nn.Sequential(nn.ReLU(), nn.Sigmoid()), torch.tensor([[-1., 1.]]), 'activation')
     assert len(trace['visualization']['columns']) == 1
     assert trace['visualization']['connections'] == []

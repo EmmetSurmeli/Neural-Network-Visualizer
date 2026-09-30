@@ -1,0 +1,26 @@
+{
+  "id": "shapes-cnn",
+  "name": "Shapes \u00b7 CNN",
+  "input_features": 784,
+  "input_shape": [
+    1,
+    28,
+    28
+  ],
+  "input_kind": "image",
+  "classes": [
+    "Circle",
+    "Square",
+    "Triangle"
+  ],
+  "parameters": 26467,
+  "dataset": "Synthetic shapes",
+  "architecture": "Conv 8 \u2192 Pool \u2192 Conv 16 \u2192 Pool \u2192 32 \u2192 3",
+  "test_accuracy": 1.0,
+  "description": "Trained on generated outline shapes.",
+  "training_samples": 1800,
+  "test_samples": 600,
+  "epochs": 15,
+  "training_seed": 42,
+  "test_seed": 4042
+}

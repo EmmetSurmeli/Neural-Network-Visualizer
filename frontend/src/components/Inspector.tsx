@@ -2,6 +2,7 @@ import {useEffect, useState} from 'react';
 import {Activity, ArrowUpRight, ChevronDown} from 'lucide-react';
 import type {Trace, Neuron, NeuronSelection} from '../types';
 import {api} from '../services/api';
+import {FeatureMapInspector} from './FeatureMaps';
 import Histogram, {fmt} from './Histogram';
 export default function Inspector({trace, selected, focusedNeuron}: {trace: Trace | null; selected: number; focusedNeuron: NeuronSelection | null}) {
   const [tab, setTab] = useState('layer'), [index, setIndex] = useState(0), [limit, setLimit] = useState(20);
@@ -21,6 +22,7 @@ export default function Inspector({trace, selected, focusedNeuron}: {trace: Trac
       <div className="inspector-title"><span className="eyebrow">LAYER {String(selected + 1).padStart(2, '0')}</span><h3>{layer.type}<span className="mono">{layer.name}</span></h3><p className="mono">[{layer.input_shape.join(', ')}] <span className="muted">→</span> [{layer.output_shape.join(', ')}]</p></div>
       <div className="tabs"><button className={tab === 'layer' ? 'active' : ''} onClick={() => setTab('layer')}>Layer details</button><button disabled={layer.type !== 'Linear'} title={layer.type !== 'Linear' ? 'Select a Linear layer to inspect weights' : undefined} className={tab === 'neuron' ? 'active' : ''} onClick={() => setTab('neuron')}>Neuron explorer <ArrowUpRight size={12}/></button></div>
       <div className="inspector-content">{tab === 'layer' ? <>
+        {layer.feature_maps && <FeatureMapInspector maps={layer.feature_maps}/>}
         <div className="section-label">Activation statistics</div><div className="stats-grid">{(['min', 'max', 'mean', 'std'] as const).map(key => <div key={key}><span>{key === 'std' ? 'Std. deviation' : key}</span><strong className="mono">{fmt(layer.stats[key])}</strong></div>)}</div>
         <div className="zero-stat"><span>Zero activations</span><strong className="mono">{layer.stats.percent_zero.toFixed(1)}%</strong></div><div className="zero-track"><i style={{width: `${layer.stats.percent_zero}%`}}/></div>
         <div className="section-label space-between">Activation distribution <span>{layer.activation_count} values</span></div><Histogram bins={layer.histogram} label="Histogram of layer activations"/>

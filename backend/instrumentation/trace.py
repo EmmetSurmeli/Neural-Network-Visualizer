@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from backend.instrumentation.visualization import visualization
 
-SUPPORTED = (nn.Linear, nn.ReLU, nn.Sigmoid, nn.Tanh, nn.Softmax, nn.Dropout, nn.Flatten)
+SUPPORTED = (nn.Linear, nn.ReLU, nn.Sigmoid, nn.Tanh, nn.Softmax, nn.Dropout, nn.Flatten, nn.Conv2d, nn.MaxPool2d, nn.AvgPool2d)
 
 def statistics(tensor):
     values = tensor.detach().double().flatten().cpu()
@@ -25,6 +25,17 @@ def ranked(tensor, limit=20, strongest=True):
     values = tensor.flatten()
     ids = torch.argsort(values.abs(), descending=strongest, stable=True)[:limit]
     return [{'index': i.item(), 'value': values[i].item()} for i in ids]
+
+def feature_maps(tensor):
+    if tensor.ndim != 4:
+        return None
+    maps = tensor[0, :32]
+    h, w = maps.shape[-2:]
+    if h > 28 or w > 28:
+        maps = torch.nn.functional.adaptive_avg_pool2d(maps, (min(h, 28), min(w, 28)))
+    return {'channels': tensor.shape[1], 'height': maps.shape[-2], 'width': maps.shape[-1],
+            'scale': max(maps.abs().max().item(), 1e-12), 'downsampled': h > 28 or w > 28,
+            'values': [m.flatten().tolist() for m in maps]}
 
 def run_trace(model: nn.Sequential, tensor: torch.Tensor, model_name: str):
     if not isinstance(model, nn.Sequential):
@@ -61,7 +72,7 @@ def run_trace(model: nn.Sequential, tensor: torch.Tensor, model_name: str):
     for index, item in enumerate(captured):
         module, x, y = item['module'], item['input'], item['output']
         params = {'count': sum(p.numel() for p in module.parameters(recurse=False))}
-        if isinstance(module, nn.Linear):
+        if isinstance(module, (nn.Linear, nn.Conv2d)):
             params.update(weight_shape=list(module.weight.shape),
                           bias_shape=list(module.bias.shape) if module.bias is not None else None,
                           weight_histogram=histogram(module.weight), weight_stats=statistics(module.weight))
@@ -70,14 +81,14 @@ def run_trace(model: nn.Sequential, tensor: torch.Tensor, model_name: str):
                        'order': index, 'input_shape': list(x.shape), 'output_shape': list(y.shape),
                        'activations': values[:512].tolist(), 'activation_count': values.numel(),
                        'truncated': values.numel() > 512, 'stats': statistics(y), 'histogram': histogram(y),
-                       'strongest': ranked(y), 'weakest': ranked(y, strongest=False), 'parameters': params})
+                       'feature_maps': feature_maps(y), 'strongest': ranked(y), 'weakest': ranked(y, strongest=False), 'parameters': params})
     result = output.flatten()
     is_probability = isinstance(captured[-1]['module'], nn.Softmax)
     return {'model_name': model_name, 'layers': layers, 'output': result.tolist(),
             'probabilities': result.tolist() if is_probability else None,
             'predicted_class': int(result.argmax()) if is_probability else None,
             'elapsed_ms': elapsed, 'parameter_count': sum(p.numel() for p in model.parameters()),
-            'input_shape': list(tensor.shape), 'visualization': visualization(captured)}, captured
+            'input_shape': list(tensor.shape), 'input_maps': feature_maps(tensor), 'visualization': visualization(captured)}, captured
 
 def neuron_details(captured, layer_index, neuron_index, limit=20):
     item = captured[layer_index]

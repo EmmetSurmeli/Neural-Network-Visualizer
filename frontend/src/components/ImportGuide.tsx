@@ -20,7 +20,7 @@ export default function ImportGuide({open, close}: {open: boolean; close: () => 
   ]
 }`}</pre>
       <p className="dialog-note">For an existing <span className="mono">nn.Sequential</span> model, use <span className="mono">export_sequential</span> from <span className="mono">backend.services.export</span>.</p>
-      <div className="example-links"><a href="/xor-model.json" download><Download size={13}/> XOR + Sigmoid example</a><a href="/tanh-classifier.json" download><Download size={13}/> Tanh + Dropout example</a></div>
+      <div className="example-links"><a href="/tiny-model.json" download><Download size={13}/> Tiny ReLU classifier</a><a href="/xor-model.json" download><Download size={13}/> XOR + Sigmoid example</a><a href="/tanh-classifier.json" download><Download size={13}/> Tanh + Dropout example</a></div>
     </div>
   </dialog>;
 }
