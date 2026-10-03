@@ -1,0 +1,54 @@
+import {test, expect} from '@playwright/test';
+
+test('digit replay, neuron focus, training handoff, and failed-request recovery', async ({page}) => {
+  await page.goto('/#/visualizer');
+  await expect(page.getByText('Service ready', {exact: true})).toBeVisible();
+  await page.getByRole('button', {name: 'Load sample 7', exact: true}).click();
+  await page.getByRole('button', {name: 'Run forward pass', exact: true}).click();
+  await expect(page.getByRole('group', {name: 'Animated neurons and weighted connections'})).toBeVisible();
+  await page.getByRole('button', {name: 'Pause animation', exact: true}).click();
+  await page.getByRole('button', {name: 'Play animation', exact: true}).click();
+  await page.getByRole('button', {name: 'Pause animation', exact: true}).click();
+  await page.locator('.neuron-column').last().getByRole('button').last().press('Enter');
+  await expect(page.getByText(/strongest of .*inputs/)).toBeVisible();
+  await page.getByRole('button', {name: 'Whole network', exact: true}).click();
+  await page.getByRole('link', {name: 'Playground', exact: true}).click();
+  await page.getByRole('combobox', {name: 'Epochs', exact: true}).selectOption('100');
+  await page.getByRole('button', {name: 'Train network', exact: true}).click();
+  await expect(page.getByRole('button', {name: 'Inspect in Visualizer', exact: true})).toBeEnabled();
+  await page.getByRole('button', {name: 'Jump to final epoch', exact: true}).click();
+  const coordinates = await page.locator('.point-coordinates').textContent();
+  await page.getByRole('button', {name: 'Inspect in Visualizer', exact: true}).click();
+  await expect(page).toHaveURL(/#\/visualizer/);
+  await expect(page.getByRole('group', {name: 'Animated neurons and weighted connections'})).toBeVisible();
+  const input = JSON.parse(await page.locator('#numeric').inputValue());
+  expect(input).toHaveLength(2);
+  expect(`[${input.map((v: number) => v.toFixed(3)).join(', ')}]`).toBe(coordinates);
+  await page.route('**/run-model', route => route.fulfill({status: 503, contentType: 'application/json', headers: {'X-Request-ID': 'a'.repeat(32)}, body: JSON.stringify({error: {code: 'BACKEND_UNAVAILABLE', message: 'Service unavailable. Retry shortly.'}})}));
+  await page.getByRole('button', {name: 'Run forward pass', exact: true}).click();
+  await expect(page.getByText('Previous result · the current request has not completed.')).toBeVisible();
+  await expect(page.getByRole('group', {name: 'Animated neurons and weighted connections'})).toBeVisible();
+  await page.unroute('**/run-model');
+  await page.locator('main:visible').getByRole('button', {name: 'Retry', exact: true}).click();
+  await expect(page.getByText('Previous result · the current request has not completed.')).not.toBeVisible();
+});
+
+test('unavailable startup preserves guides, keyboard access, offline recovery, and both routes', async ({page, context}) => {
+  await page.route('**/demo-models', route => route.abort());
+  await page.goto('/#/visualizer');
+  await expect(page.locator('main:visible').getByRole('alert')).toBeVisible();
+  await page.getByRole('button', {name: 'Format', exact: true}).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('link', {name: 'Tiny ReLU classifier'})).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.unroute('**/demo-models');
+  await page.locator('main:visible').getByRole('button', {name: 'Retry', exact: true}).click();
+  await expect(page.getByRole('button', {name: 'Run forward pass', exact: true})).toBeEnabled();
+  await context.setOffline(true);
+  await expect(page.getByText('Browser offline', {exact: true})).toBeVisible();
+  await expect(page.getByRole('button', {name: 'Run forward pass', exact: true})).toBeDisabled();
+  await context.setOffline(false);
+  await page.goto('/#/playground');
+  await expect(page.getByRole('heading', {name: 'When does a network get it wrong?'})).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+});

@@ -5,6 +5,7 @@ from torch import nn
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Literal
 from uuid import uuid4
+from backend.runtime import check_deadline
 
 Dataset = Literal['xor', 'moons', 'circles', 'spiral']
 NAMES = {'xor': 'XOR', 'moons': 'Two moons', 'circles': 'Circles', 'spiral': 'Spiral'}
@@ -75,6 +76,7 @@ def train_model(config: PlaygroundConfig):
         loss_fn = nn.CrossEntropyLoss()
         snapshots = []
         for epoch in range(config.epochs + 1):
+            check_deadline()
             if epoch:
                 optimizer.zero_grad()
                 loss = loss_fn(logits_model(x[train_mask]), y[train_mask])

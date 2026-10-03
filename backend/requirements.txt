@@ -5,3 +5,4 @@ numpy>=2,<3
 pydantic>=2.9,<3
 pytest>=8,<10
 httpx>=0.28,<1
+sentry-sdk>=2,<3

@@ -2,21 +2,25 @@ import {useEffect, useState} from 'react';
 import {Activity, ArrowUpRight, ChevronDown} from 'lucide-react';
 import type {Trace, Neuron, NeuronSelection} from '../types';
 import {api} from '../services/api';
+import RequestNotice from './RequestNotice';
+import useRequestState from '../hooks/useRequestState';
 import {FeatureMapInspector} from './FeatureMaps';
 import Histogram, {fmt} from './Histogram';
 export default function Inspector({trace, selected, focusedNeuron}: {trace: Trace | null; selected: number; focusedNeuron: NeuronSelection | null}) {
   const [tab, setTab] = useState('layer'), [index, setIndex] = useState(0), [limit, setLimit] = useState(20);
-  const [neuron, setNeuron] = useState<Neuron | null>(null), [error, setError] = useState('');
+  const [neuron, setNeuron] = useState<Neuron | null>(null);
+  const request = useRequestState(), [retry, setRetry] = useState(0);
   const layer = trace?.layers[selected];
-  useEffect(() => {setIndex(0); setNeuron(null); setError(''); setTab('layer');}, [selected, trace?.trace_id]);
+  useEffect(() => {setIndex(0); setNeuron(null); request.reset(); setTab('layer');}, [selected, trace?.trace_id]);
   useEffect(() => {if (focusedNeuron?.layer === selected) {setIndex(focusedNeuron.index); setTab('neuron');}}, [focusedNeuron, selected]);
   useEffect(() => {
-    setNeuron(null); setError('');
+    setNeuron(null); request.reset();
     if (!trace || layer?.type !== 'Linear' || tab !== 'neuron') return;
+    request.start('Calculating contributions…');
     const abort = new AbortController();
-    api.neuron(trace.trace_id, selected, index, limit, abort.signal).then(setNeuron).catch(e => {if (!abort.signal.aborted) setError(e.message);});
+    api.neuron(trace.trace_id, selected, index, limit, abort.signal).then(data => {if (!abort.signal.aborted) {setNeuron(data); request.success();}}).catch(e => {if (!abort.signal.aborted) request.fail(e);});
     return () => abort.abort();
-  }, [trace?.trace_id, selected, index, limit, tab, layer?.type]);
+  }, [trace?.trace_id, selected, index, limit, tab, layer?.type, retry]);
   return <aside className="inspector panel" id="inspector"><div className="panel-heading"><h2>Inspector</h2></div>
     {!layer ? <div className="inspector-empty"><Activity size={28}/><h3>No layer selected</h3><p>Run a forward pass and select a layer to explore its activations.</p></div> : <>
       <div className="inspector-title"><span className="eyebrow">LAYER {String(selected + 1).padStart(2, '0')}</span><h3>{layer.type}<span className="mono">{layer.name}</span></h3><p className="mono">[{layer.input_shape.join(', ')}] <span className="muted">→</span> [{layer.output_shape.join(', ')}]</p></div>
@@ -31,9 +35,9 @@ export default function Inspector({trace, selected, focusedNeuron}: {trace: Trac
         <details className="detail-section"><summary>Weakest activations <ChevronDown size={13}/></summary><div className="ranked-list">{layer.weakest.map(v => <span key={v.index} className="mono">n{v.index}: {fmt(v.value)}</span>)}</div></details>
         {layer.parameters.weight_histogram && <details className="detail-section"><summary>Weights & biases <span className="mono">{layer.parameters.count.toLocaleString()} params</span></summary><div className="weight-info"><span>Weight <b className="mono">[{layer.parameters.weight_shape?.join(' × ')}]</b></span><span>Bias <b className="mono">{layer.parameters.bias_shape ? `[${layer.parameters.bias_shape.join(', ')}]` : 'None'}</b></span></div><Histogram bins={layer.parameters.weight_histogram} color="var(--purple)" label="Weight distribution"/></details>}
       </> : <>
-        <div className="neuron-controls"><label>Neuron<select value={index} onChange={e => setIndex(Number(e.target.value))}>{Array.from({length: layer.output_shape.at(-1) ?? 0}, (_, i) => <option key={i} value={i}>n{i}</option>)}</select></label><label>Top inputs<select value={limit} onChange={e => setLimit(Number(e.target.value))}>{[10, 20, 50].map(n => <option key={n}>{n}</option>)}</select></label></div>
+        <div className="neuron-controls"><label>Neuron<select disabled={request.state.status === 'loading'} value={index} onChange={e => setIndex(Number(e.target.value))}>{Array.from({length: layer.output_shape.at(-1) ?? 0}, (_, i) => <option key={i} value={i}>n{i}</option>)}</select></label><label>Top inputs<select disabled={request.state.status === 'loading'} value={limit} onChange={e => setLimit(Number(e.target.value))}>{[10, 20, 50].map(n => <option key={n}>{n}</option>)}</select></label></div>
         <div className="formula">z = Σ wᵢxᵢ + b</div>
-        {error ? <p className="error" role="alert">{error}</p> : !neuron ? <p className="muted">Calculating contributions…</p> : <>
+        {!neuron ? <RequestNotice state={request.state} retry={() => setRetry(v => v + 1)}/> : <>
           <div className="stats-grid"><div><span>Pre-activation z</span><strong className="mono">{fmt(neuron.pre_activation)}</strong></div><div><span>After {neuron.activation}</span><strong className="mono accent">{fmt(neuron.post_activation)}</strong></div><div><span>Σ contributions</span><strong className="mono">{fmt(neuron.contribution_sum)}</strong></div><div><span>Bias</span><strong className="mono">{fmt(neuron.bias)}</strong></div></div>
           <div className="section-label space-between">Input contributions <span>top {Math.min(limit, neuron.input_count)} of {neuron.input_count}</span></div><p className="tiny muted">Each bar is input × weight, ranked by absolute value.</p>
           <div className="contribution-legend"><span><i/> Positive</span><span><i/> Negative</span></div>

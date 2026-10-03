@@ -1,6 +1,12 @@
 # NeuralScope
 
-A local React + FastAPI application for **seeing how small neural networks learn and make decisions**. Playground trains a small network on a 2D dataset; Visualizer inspects the actual forward pass for one input. The bundled MNIST classifier is trained, not randomly initialized. Draw a digit or choose a test sample, run inference, then inspect the computation layer by layer.
+A React + FastAPI application for **seeing how small neural networks learn and make decisions**. Playground trains a small network on a 2D dataset; Visualizer inspects the actual forward pass for one input. The bundled MNIST classifier is trained, not randomly initialized. Draw a digit or choose a test sample, run inference, then inspect the computation layer by layer.
+
+## Public demo deployment
+
+Start with the [launch checklist](LAUNCH.md).
+
+The repository includes Vercel and Render configuration, bounded session memory, request limits, recoverable loading/error states, optional anonymous analytics, and scrubbed error monitoring. See [DEPLOYMENT.md](DEPLOYMENT.md), [PRIVACY.md](PRIVACY.md), and [OPERATIONS.md](OPERATIONS.md). Provider accounts and environment variables must be configured before public launch.
 
 ## Run
 
@@ -37,7 +43,7 @@ curl http://127.0.0.1:8000/run-demo \
 - Point selection works by click, arrow keys in the plot, or the point selector. Inspect always uses the **final trained model**, regardless of the displayed replay epoch.
 - Switching sections preserves state until page reload. The backend keeps only the latest trained Playground model without consuming the eight JSON import slots; earlier model IDs expire when retraining succeeds.
 
-- Five built-in models: MNIST MLP, shapes CNN, line-orientation CNN, XOR, and a three-input numeric example. Selecting a model loads a matching test input and runs it.
+- Five built-in models: MNIST MLP, shapes CNN, line-orientation CNN, XOR, and a three-input numeric example. Selecting a model loads a matching test input; press Run forward pass to visualize it.
 - CNN playback displays actual convolution/ReLU/pooling feature maps, linked to each execution step. Select a stage to inspect all its channels with a shared signed color scale. Flattening then connects to the dense neuron diagram; convolution connectivity is not represented as fully connected edges.
 - Hidden-neuron display switches between 16 and 32 without rerunning inference.
 - Trained `784 → 128 → ReLU → 64 → ReLU → 10 → Softmax` digit classifier.
@@ -80,7 +86,7 @@ React/TypeScript/Vite + Tailwind form the UI; FastAPI/Pydantic/PyTorch form the 
 
 `run_trace(model, tensor, model_name)` registers forward hooks on supported leaf modules, switches to evaluation mode, and executes under `torch.inference_mode()`. Each hook clones detached CPU input/output tensors. Execution order is the order in which those hooks run. A `finally` block removes all hooks and restores each module's previous train/eval state, including after inference errors.
 
-JSON summaries include at most 512 activation values per layer, full statistics/histograms, and the top/bottom 20 activations. Raw captures remain in a bounded in-memory cache for on-demand neuron queries; full weight matrices are not sent with every trace. The last 16 traces and up to eight imported models are retained until restart. A lock serializes inference and registry access so hooks from concurrent requests cannot mix captures.
+JSON summaries include at most 512 activation values per layer, full statistics/histograms, and the top/bottom 20 activations. Raw captures remain in a bounded in-memory cache for on-demand neuron queries; full weight matrices are not sent with every trace. Each visitor has a temporary isolated session with up to 16 traces, eight imported models, and the latest trained Playground model. Sessions expire after 30 idle minutes; global cache limits can expire older traces sooner. A lock serializes inference and registry access so hooks from concurrent requests cannot mix captures.
 
 For Linear neuron `j`, contributions are `x[i] * W[j,i]`; their sum plus `b[j]` matches the recorded Linear output to floating-point tolerance. If the immediately following layer is ReLU, Sigmoid, Tanh or Softmax, the inspector also shows its output for that neuron. Softmax is a vector operation, not an independent scalar activation.
 
@@ -135,7 +141,9 @@ Limits: 8 MB request bodies, one sample per run, 4,096 input features, 24 layers
 |---|---|
 | `GET /playground/dataset?dataset=moons&seed=42` | Preview deterministic points and plotting bounds |
 | `POST /playground/train` | Train, register the final model, and return metrics and replay snapshots |
-| `GET /health` | Runtime readiness and PyTorch version |
+| `GET /health` | Readiness after built-in models load |
+| `POST /session` | Create an anonymous temporary session; send its token in `X-NeuralScope-Session` |
+| `DELETE /session` | Delete this session’s in-memory models and traces |
 | `GET /demo-models` | Bundled model metadata |
 | `GET /samples?model_id=…` | Model-specific image samples (defaults to MNIST) |
 | `POST /run-demo` | Run `{ "input": [784 values] }` |
@@ -177,7 +185,7 @@ Select a dense neuron to focus on its incoming connections; select a source neur
 
 ## Known limitations and next steps
 
-V1 targets flat, single-sample feed-forward Sequential models. It does not reconstruct arbitrary control flow, branches, recurrent layers, transformers, or gradients. Built-in CNNs support Conv2d, ReLU, MaxPool2d, Flatten, and dense layers; JSON imports remain limited to flat Sequential models. Traces and imported models are process-local; restarting or running multiple server workers will not preserve them. Run one worker. This is a localhost developer tool, not an authenticated multi-user deployment.
+V1 targets flat, single-sample feed-forward Sequential models. It does not reconstruct arbitrary control flow, branches, recurrent layers, transformers, or gradients. Built-in CNNs support Conv2d, ReLU, MaxPool2d, Flatten, and dense layers; JSON imports remain limited to flat Sequential models. Traces and imported models are process-local; restarting or running multiple server workers will not preserve them. Run one worker. Public deployment uses anonymous, temporary bearer sessions; no accounts or database are required. Keep a single instance until the in-memory session architecture is replaced.
 
 Playground stays focused on small binary 2D classification problems. It does not train MNIST or imported models. Training requests run synchronously under the inference lock. The default seed is 42; the API accepts a nonnegative 32-bit seed. No datasets or packages are downloaded during training.
 

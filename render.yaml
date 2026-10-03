@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: neuralscope-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: 1c-2g
+    numInstances: 1
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: RELEASE
+        value: 1.0.0
+      - key: SESSION_TTL_SECONDS
+        value: 1800

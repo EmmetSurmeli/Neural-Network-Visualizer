@@ -1,6 +1,9 @@
 import {useEffect, useRef, useState} from 'react';
 import {Pause, Play, RotateCcw, SkipForward, ArrowRight, LoaderCircle} from 'lucide-react';
 import {api} from '../services/api';
+import RequestNotice from './RequestNotice';
+import useRequestState, {useOnline} from '../hooks/useRequestState';
+import {track} from '../lib/telemetry';
 import type {DatasetName, PlaygroundConfig, PlaygroundDataset, PlaygroundRun, PlaygroundHandoff} from '../types';
 
 const names: Record<DatasetName, string> = {xor: 'XOR', moons: 'Two moons', circles: 'Circles', spiral: 'Spiral'};
@@ -17,17 +20,19 @@ export default function Playground({active, inspect}: {active: boolean; inspect:
   const [config, setConfig] = useState<PlaygroundConfig>(initial);
   const [preview, setPreview] = useState<PlaygroundDataset | null>(null);
   const [run, setRun] = useState<PlaygroundRun | null>(null);
-  const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState('');
+  const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true);
   const [index, setIndex] = useState(0), [playing, setPlaying] = useState(false), [selected, setSelected] = useState(0);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [showMistakes, setShowMistakes] = useState(false);
   const [previous, setPrevious] = useState<PlaygroundRun | null>(null);
+  const request = useRequestState(), online = useOnline();
+  const retryAction = useRef<() => void>(() => {});
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true); setPreview(null); setError('');
-    api.dataset(config.dataset, config.seed, config.noise, controller.signal).then(setPreview)
-      .catch(e => {if (!controller.signal.aborted) setError(e.message);})
+    setLoading(true); request.start('Loading dataset…'); retryAction.current = () => setRetry(v => v + 1);
+    api.dataset(config.dataset, config.seed, config.noise, controller.signal).then(data => {if (!controller.signal.aborted) {setPreview(data); request.success();}})
+      .catch(e => {if (!controller.signal.aborted) request.fail(e, !!run || !!preview);})
       .finally(() => {if (!controller.signal.aborted) setLoading(false);});
     return () => controller.abort();
   }, [config.dataset, config.seed, config.noise, retry]);
@@ -61,13 +66,13 @@ export default function Playground({active, inspect}: {active: boolean; inspect:
   }, [snapshot]);
   function change(next: Partial<PlaygroundConfig>) {
     if (run) setPrevious(run);
-    setConfig(c => ({...c, ...next})); setRun(null); setIndex(0); setPlaying(false); setError('');
+    setConfig(c => ({...c, ...next})); setRun(null); setIndex(0); setPlaying(false); request.reset();
     if (next.dataset) setSelected(0);
   }
   async function train() {
-    setBusy(true); setPlaying(false); setError('');
-    try {if (run) setPrevious(run); const result = await api.train(config); setRun(result); setIndex(0); setPlaying(true);}
-    catch (e) {setError(e instanceof Error ? e.message : 'Training failed. Please try again.');}
+    setBusy(true); setPlaying(false); request.start('Training network…'); retryAction.current = () => void train();
+    try {if (run) setPrevious(run); const result = await api.train(config); setRun(result); setIndex(0); setPlaying(true); request.success();}
+    catch (e) {request.fail(e, !!run);}
     finally {setBusy(false);}
   }
   const coord = (v: number) => data ? 28 + (v - data.grid.min) / (data.grid.max - data.grid.min) * 544 : 0;
@@ -79,11 +84,11 @@ export default function Playground({active, inspect}: {active: boolean; inspect:
   }
   return <main className="playground">
     <div className="page-intro"><div><h1>When does a network get it wrong?</h1><p>Change the data or the network. Train it, check the mistakes, then inspect a prediction.</p></div><span className="tiny muted">2 inputs · 2 classes</span></div>
-    {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => {setError(''); setRetry(v => v + 1);}}>Retry</button></div>}
+    <RequestNotice state={request.state} retry={() => retryAction.current()}/>
     <div className="experiment-strip"><span>Start an experiment</span><button disabled={busy} onClick={() => experiment('clean')}>1. Separate the classes<small>Low noise · 8 + 8 neurons</small></button><button disabled={busy} onClick={() => experiment('overlap')}>2. Make them overlap<small>High noise · same network</small></button><button disabled={busy} onClick={() => experiment('small')}>3. Limit the network<small>Low noise · just 2 neurons</small></button></div>
     <div className="playground-grid">
       <aside className="panel training-controls"><div className="panel-heading"><h2>Build & train</h2></div><fieldset disabled={busy}>
-        <button className="run-button" disabled={busy || loading || !data} onClick={() => void train()}>{busy ? <LoaderCircle size={15} className="spin"/> : <Play size={15}/>} {busy ? 'Training…' : run ? 'Train again' : 'Train network'}</button>
+        <button className="run-button" disabled={busy || loading || !data || !online} onClick={() => void train()}>{busy ? <LoaderCircle size={15} className="spin"/> : <Play size={15}/>} {busy ? 'Training…' : run ? 'Train again' : 'Train network'}</button>
         <label>Dataset<select value={config.dataset} onChange={e => change({dataset: e.target.value as DatasetName})}>{Object.entries(names).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
         <div className="noise-control"><label htmlFor="noise">Data noise <output>{Math.round(config.noise * 100)}%</output></label><input id="noise" type="range" min="0" max="0.8" step="0.05" value={config.noise} onChange={e => change({noise: +e.target.value})}/><p>Moves points away from the pattern. More noise makes the classes overlap.</p></div>
         <button className="text-button resample" onClick={() => change({seed: (config.seed + 1) % 2147483648})}>New sample ↻</button>
@@ -118,7 +123,7 @@ export default function Playground({active, inspect}: {active: boolean; inspect:
         <section className="panel"><div className="panel-heading"><h2>Training</h2><span className="tag">{run ? 'RECORDED REPLAY' : 'NOT TRAINED'}</span></div>
           <dl className="training-metrics"><div><dt>Epoch</dt><dd>{snapshot?.epoch ?? '—'}<small> / {config.epochs}</small></dd></div><div><dt>Loss</dt><dd>{snapshot?.loss.toFixed(4) ?? '—'}</dd></div><div><dt>Training accuracy</dt><dd>{snapshot ? percent(snapshot.train_accuracy) : '—'}</dd></div><div><dt>Validation accuracy</dt><dd>{snapshot ? percent(snapshot.validation_accuracy) : '—'}</dd></div></dl>
           <div className="loss-chart"><span className="tiny muted">Loss · <b className="train-key">training</b> / <b className="validation-key">validation</b></span><svg viewBox="0 0 600 90" role="img" aria-label="Training loss curve"><path d="M8 74H592" stroke="#333"/>{run && <><path d={curve('loss')} stroke="#65b4c6" strokeWidth="2" fill="none"/><path d={curve('validation_loss')} stroke="#ca7476" strokeWidth="2" fill="none"/></>}{run && <line x1={8 + index / (run.snapshots.length - 1) * 584} x2={8 + index / (run.snapshots.length - 1) * 584} y1="7" y2="76" stroke="#ddd"/>}</svg></div>
-          <div className="training-playback"><div className="playback-buttons"><button aria-label="Replay training" disabled={!run || busy} onClick={() => {setIndex(0); setPlaying(true);}}><RotateCcw size={15}/></button><button aria-label={playing ? 'Pause training replay' : 'Play training replay'} disabled={!run || busy} onClick={() => {if (run && index === run.snapshots.length - 1) setIndex(0); setPlaying(v => !v);}}>{playing ? <Pause size={15}/> : <Play size={15}/>}</button><button aria-label="Jump to final epoch" disabled={!run || busy} onClick={() => {setPlaying(false); setIndex(run!.snapshots.length - 1);}}><SkipForward size={15}/></button></div><input type="range" aria-label="Training epoch" min={0} max={(run?.snapshots.length ?? 2) - 1} value={index} disabled={!run || busy} onChange={e => {setPlaying(false); setIndex(+e.target.value);}} aria-valuetext={`Epoch ${snapshot?.epoch ?? 0}`}/></div>
+          <div className="training-playback"><div className="playback-buttons"><button aria-label="Replay training" disabled={!run || busy} onClick={() => {setIndex(0); setPlaying(true); request.success();}}><RotateCcw size={15}/></button><button aria-label={playing ? 'Pause training replay' : 'Play training replay'} disabled={!run || busy} onClick={() => {if (run && index === run.snapshots.length - 1) setIndex(0); setPlaying(v => !v);}}>{playing ? <Pause size={15}/> : <Play size={15}/>}</button><button aria-label="Jump to final epoch" disabled={!run || busy} onClick={() => {setPlaying(false); setIndex(run!.snapshots.length - 1);}}><SkipForward size={15}/></button></div><input type="range" aria-label="Training epoch" min={0} max={(run?.snapshots.length ?? 2) - 1} value={index} disabled={!run || busy} onChange={e => {setPlaying(false); setIndex(+e.target.value);}} aria-valuetext={`Epoch ${snapshot?.epoch ?? 0}`}/></div>
           <p className="replay-note tiny muted">Replay shows a snapshot every 5 epochs.</p>
           <div className="results-explanation"><p><strong>Training</strong> measures the 160 points used to adjust the weights. <strong>Validation</strong> measures 40 points held out from training.</p><p>{snapshot ? snapshot.train_accuracy - snapshot.validation_accuracy > .1 ? 'The network does better on familiar points. Try less capacity or fewer epochs and check whether validation improves.' : snapshot.validation_accuracy < .8 ? 'The model is still missing held-out points. Check the highlighted mistakes: overlapping data or limited capacity may be contributing.' : config.noise >= .3 ? 'Inspect the remaining mistakes. Where the classes overlap, even a confident prediction can be wrong.' : 'The network separates most held-out points. Add noise and train again to see where this stops working.' : 'Train a network, then watch both curves. If training loss falls while validation loss rises, it may be fitting details that do not generalize.'}</p></div>
           {previous && <div className="previous-run"><span>Previous completed run</span><p>{names[previous.config.dataset]} · {Math.round(previous.config.noise * 100)}% noise · {previous.config.hidden_layers.join(' + ')} neurons</p><strong>{percent(previous.metrics.validation_accuracy)} validation</strong><p>{previous.config.dataset === config.dataset && previous.config.seed === config.seed && previous.config.noise === config.noise ? 'Same data and split as this experiment.' : 'Data differs; these scores use different examples.'}</p></div>}
