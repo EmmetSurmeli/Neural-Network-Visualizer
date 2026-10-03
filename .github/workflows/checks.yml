@@ -5,6 +5,23 @@ on:
 permissions:
   contents: read
 jobs:
+  production-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production backend
+        run: docker build -t neuralscope-api .
+      - name: Start production backend
+        run: docker run -d --name neuralscope-api -p 8002:8000 -e ALLOWED_ORIGINS=https://example.com neuralscope-api
+      - name: Verify readiness, import and prediction
+        run: python3 scripts/smoke_deployment.py http://127.0.0.1:8002
+      - name: Show server diagnostics
+        if: failure()
+        run: docker logs neuralscope-api
+      - name: Stop production backend
+        if: always()
+        run: docker rm -f neuralscope-api || true
   test:
     runs-on: ubuntu-latest
     steps:

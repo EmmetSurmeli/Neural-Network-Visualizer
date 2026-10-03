@@ -12,12 +12,12 @@ The first release has one job: load a small network, run an input, and watch its
 - [x] Local verification: 82 backend tests, 23 frontend tests, production build and whitespace checks pass.
 - [x] Interactive browser checks: inference, replay, neuron focus, training handoff, expired-session recovery, service outage and mobile layout.
 
-The desktop/mobile automated browser suite is configured for CI. Its tests have been discovered successfully; the CI runner has not yet executed them. The Docker image and hosted integration still need verification in their target environments.
+The desktop/mobile automated browser suite passed in [GitHub Actions](https://github.com/EmmetSurmeli/Neural-Network-Visualizer/actions/runs/37160850711), together with the backend tests, frontend tests and production build. CI also checks the production Docker image; the hosted integration still needs verification after connecting the hosting accounts.
 
 ## 1. Publish the code
 
-- [ ] Review and commit the current changes, then push to GitHub.
-- [ ] Confirm the **Release checks** workflow passes, including all four browser smoke scenarios.
+- [x] Review and commit the current changes, then push to GitHub.
+- [x] Confirm the **Release checks** workflow passes, including all four browser smoke scenarios.
 - [ ] Require that check on the main branch before automatically deploying future changes.
 
 ## 2. Create the Python service
