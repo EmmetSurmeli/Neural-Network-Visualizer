@@ -1,5 +1,6 @@
 """Check a deployed API using only bundled public example data."""
 import json
+from http.client import RemoteDisconnected
 import math
 from pathlib import Path
 import sys
@@ -25,7 +26,7 @@ def main():
         try:
             assert request('/health') == {'status': 'ok'}
             break
-        except (URLError, TimeoutError):
+        except (URLError, TimeoutError, ConnectionError, RemoteDisconnected):
             if attempt == 59:
                 raise
             time.sleep(1)
