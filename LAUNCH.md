@@ -11,6 +11,7 @@ The first release has one job: load a small network, run an input, and watch its
 - [x] Vercel/Render configuration, environment templates and GitHub Actions checks.
 - [x] Local verification: 82 backend tests, 23 frontend tests, production build and whitespace checks pass.
 - [x] Interactive browser checks: inference, replay, neuron focus, training handoff, expired-session recovery, service outage and mobile layout.
+- [x] Hosted smoke check: [Vercel frontend](https://neuralscope-smoky.vercel.app) reaches the [Render API](https://neuralscope-api-24v5.onrender.com/health), wakes from idle, and completes a digit-7 forward pass.
 
 The desktop/mobile automated browser suite passed in [GitHub Actions](https://github.com/EmmetSurmeli/Neural-Network-Visualizer/actions/runs/37160850711), together with the backend tests, frontend tests and production build. CI also checks the production Docker image; the hosted integration still needs verification after connecting the hosting accounts.
 
@@ -22,22 +23,22 @@ The desktop/mobile automated browser suite passed in [GitHub Actions](https://gi
 
 ## 2. Create the Python service
 
-- [ ] In Render, create a Blueprint from this repository; it reads `render.yaml`.
+- [x] In Render, create a Blueprint from this repository; it reads `render.yaml`.
 - [x] Use the free web tier for the first public demo; move to 2 GB only if real traffic needs it.
 - [ ] Keep one instance and one worker. Do not attach a persistent disk.
 - [ ] Set `ALLOWED_ORIGINS` to your frontend's exact HTTPS origin once Vercel assigns it.
 - [ ] Leave `SENTRY_DSN` empty initially, or add the backend project's DSN.
-- [ ] Record the assigned backend URL and confirm `/health` returns `{"status":"ok"}`.
+- [x] Record the assigned backend URL and confirm `/health` returns `{"status":"ok"}`: `https://neuralscope-api-24v5.onrender.com`.
 
 ## 3. Create the frontend
 
-- [ ] Import the same repository into Vercel using the repository root. The included `vercel.json` supplies the build commands and output directory.
+- [x] Import the same repository into Vercel using the repository root. The included `vercel.json` supplies the build commands and output directory.
 - [ ] In Production environment variables, set:
   - `VITE_API_URL` = the Render HTTPS URL, without a trailing slash.
   - `VITE_APP_ENV` = `production`.
   - `VITE_APP_VERSION` = this release's version or Git commit.
   - `VITE_PRODUCTION_HOST` = the exact Vercel/custom hostname, without `https://`.
-- [ ] Deploy, then put its exact origin in Render's `ALLOWED_ORIGINS` and redeploy the backend.
+- [x] Deploy, then put its exact origin in Render's `ALLOWED_ORIGINS` and redeploy the backend. Live URL: `https://neuralscope-smoky.vercel.app`.
 - [ ] Configure Preview variables separately with `VITE_APP_ENV=preview` and no production monitoring keys. Add exact preview origins to Render as needed; do not allow every `vercel.app` site.
 
 ## 4. Add monitoring
