@@ -23,7 +23,7 @@ The desktop/mobile automated browser suite passed in [GitHub Actions](https://gi
 ## 2. Create the Python service
 
 - [ ] In Render, create a Blueprint from this repository; it reads `render.yaml`.
-- [ ] Review the selected 2 GB plan and its current price before creating resources.
+- [x] Use the free web tier for the first public demo; move to 2 GB only if real traffic needs it.
 - [ ] Keep one instance and one worker. Do not attach a persistent disk.
 - [ ] Set `ALLOWED_ORIGINS` to your frontend's exact HTTPS origin once Vercel assigns it.
 - [ ] Leave `SENTRY_DSN` empty initially, or add the backend project's DSN.

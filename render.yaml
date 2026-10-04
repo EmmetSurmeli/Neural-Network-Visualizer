@@ -3,7 +3,7 @@ services:
     name: neuralscope-api
     runtime: docker
     dockerfilePath: ./Dockerfile
-    plan: 1c-2g
+    plan: free
     numInstances: 1
     healthCheckPath: /health
     envVars:
