@@ -31,6 +31,7 @@ class Session:
     touched: float
     models: set = field(default_factory=set)
     traces: set = field(default_factory=set)
+    active: int = 0
 
 
 class Sessions:
@@ -63,7 +64,12 @@ class Sessions:
         with self.guard:
             self.prune()
             if len(self.items) >= MAX_SESSIONS:
-                raise ServiceError('SERVICE_BUSY', 'The demo is busy. Please try again shortly.', retry_after=30)
+                # Reclaim the least recently used session that has no request in flight.
+                # Its owner will receive SESSION_EXPIRED and can start a new session.
+                oldest = next((token for token, session in self.items.items() if not session.active), None)
+                if oldest is None:
+                    raise ServiceError('SERVICE_BUSY', 'The demo is busy. Please try again shortly.', retry_after=30)
+                self.remove(oldest)
             token = secrets.token_urlsafe(32)
             self.items[token] = Session(monotonic())
             return token
@@ -75,7 +81,20 @@ class Sessions:
             if not session:
                 raise ServiceError('SESSION_EXPIRED', 'Your temporary session expired. Retry, then re-import or retrain your model if needed.', 401)
             session.touched = monotonic()
+            self.items.move_to_end(token)
             return session
+
+    def enter(self, token):
+        with self.guard:
+            session = self.get(token)
+            session.active += 1
+            return session
+
+    def leave(self, token):
+        with self.guard:
+            session = self.items.get(token)
+            if session:
+                session.active -= 1
 
     def current(self):
         return self.get(owner.get())

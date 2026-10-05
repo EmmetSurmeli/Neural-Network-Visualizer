@@ -1,10 +1,12 @@
 # Privacy and temporary storage
 
+The visitor-facing notice is in **Privacy & session** on the website. For privacy questions or rights requests, contact the maintainer through the [public GitHub profile](https://github.com/EmmetSurmeli); do not put private information in a public issue. This notice should be reviewed for the jurisdictions where the demo is promoted, especially before enabling optional telemetry.
+
 NeuralScope has no accounts or saved history. Models, inputs and traces are processed by the Python service in **temporary server memory**. “Session-only” does not mean computation happens entirely in the browser. All public traffic should use HTTPS.
 
 | Data | Location and lifetime |
 |---|---|
-| Uploaded JSON weights, generated Playground models | Backend memory; eight imports plus latest Playground model per visitor; expires after 30 minutes of session inactivity, clearing, or process restart |
+| Uploaded JSON weights, generated Playground models | Backend memory; eight imports plus latest Playground model per visitor; expires after 30 minutes of session inactivity, clearing, process restart, or earlier capacity eviction |
 | Inputs and captured activations | Browser state and backend trace memory; at most 16 traces per visitor, also bounded globally; older traces may expire sooner |
 | Bearer session token | Browser tab sessionStorage, with memory fallback; expires at the server; never in analytics, URLs or application logs |
 | Analytics choice | Browser localStorage until changed or browser storage is cleared |
@@ -12,7 +14,7 @@ NeuralScope has no accounts or saved history. Models, inputs and traces are proc
 | Application logs | Route category, random request reference, status and elapsed time; no bodies, query strings, model names, raw inputs or weights |
 | Exported/downloaded files | Saved only when the visitor uses download/export; outside server storage |
 
-`Privacy & session → Clear temporary session & reload` removes server models and traces associated with this visitor. Closing a tab does not immediately delete server data; TTL cleanup runs every 30 seconds. Hosted platforms and ingestion providers see connection metadata such as IP addresses as part of delivering requests. Configure provider retention and IP scrubbing before launch. Application code does not promise to erase infrastructure logs.
+`Privacy & session → Clear temporary session & reload` removes server models and traces associated with this visitor. Closing a tab does not immediately delete server data; TTL cleanup runs every 30 seconds. At the 64-session cap, the oldest session without a request in flight is reclaimed and its data deleted. Hosted platforms and ingestion providers see connection metadata such as IP addresses as part of delivering requests. Configure provider retention and IP scrubbing before launch. Application code does not promise to erase infrastructure logs.
 
 The production frontend asks whether to allow anonymous usage counts. No analytics initialize until allowed; browser Do Not Track and Global Privacy Control override Allow. Visitors can opt out at any time. No automatic click collection, session replay, user identification, feature flags, URL/referrer collection, or person profiles are enabled. Local and Preview builds never initialize production telemetry.
 

@@ -50,5 +50,10 @@ test('unavailable startup preserves guides, keyboard access, offline recovery, a
   await context.setOffline(false);
   await page.goto('/#/playground');
   await expect(page.getByRole('heading', {name: 'When does a network get it wrong?'})).toBeVisible();
+  await page.getByRole('button', {name: 'Privacy & session'}).click();
+  const privacy = page.getByRole('dialog', {name: 'Privacy & session'});
+  await expect(privacy.getByRole('link', {name: 'public GitHub profile'})).toHaveAttribute('href', 'https://github.com/EmmetSurmeli');
+  await expect(privacy.getByText(/least recently used session/)).toBeVisible();
+  await page.getByRole('button', {name: 'Close privacy notice'}).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });

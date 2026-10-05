@@ -5,7 +5,7 @@ import math
 from pathlib import Path
 import sys
 import time
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
@@ -32,6 +32,12 @@ def main():
             time.sleep(1)
 
     token = request('/session', 'POST')['token']
+    try:
+        request('/docs')
+    except HTTPError as exc:
+        assert exc.code == 404, 'Production API documentation should not be public'
+    else:
+        raise AssertionError('Production API documentation should not be public')
     try:
         spec = json.loads((Path(__file__).resolve().parents[1] / 'examples/tiny-model.json').read_text())
         model = request('/upload-model', 'POST', spec)

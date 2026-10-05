@@ -1,7 +1,7 @@
 import {defineConfig, devices} from '@playwright/test';
 export default defineConfig({
   testDir: './tests/browser', fullyParallel: false, workers: 1, retries: process.env.CI ? 1 : 0,
-  timeout: 60000, use: {baseURL: 'http://127.0.0.1:4173', trace: 'retain-on-failure'},
+  timeout: 60000, use: {baseURL: 'http://127.0.0.1:4173', trace: 'retain-on-failure', launchOptions: {executablePath: process.env.PLAYWRIGHT_CHROME_PATH || undefined}},
   projects: [{name: 'desktop', use: {...devices['Desktop Chrome']}}, {name: 'mobile', use: {...devices['iPhone 13'], defaultBrowserType: 'chromium'}}],
   webServer: [
     {command: '../.venv/bin/python -m uvicorn backend.main:app --app-dir .. --host 127.0.0.1 --port 8001 --no-access-log', url: 'http://127.0.0.1:8001/health', reuseExistingServer: false, env: {ALLOWED_ORIGINS: 'http://127.0.0.1:4173', APP_ENV: 'production'}, timeout: 120000},

@@ -1,16 +1,16 @@
 # Deploy NeuralScope
 
-The repository is prepared for Vercel (frontend) and Render (Python service). Creating provider projects, connecting GitHub, selecting a paid plan, and entering credentials are still deployment steps. No provider resources or credentials are created by this code change.
+The public demo is deployed at [neuralscope-smoky.vercel.app](https://neuralscope-smoky.vercel.app). Its API is [neuralscope-api-24v5.onrender.com](https://neuralscope-api-24v5.onrender.com/health). This guide also covers recreating the deployment or changing its settings.
 
 ## 1. Backend on Render
 
-Create a Blueprint from this repository using `render.yaml`. It defines one Docker web service with a 2 GB instance. Review the current plan price before creating it. The CPU-only PyTorch image includes the five bundled models; it never downloads datasets at startup. No persistent disk is needed.
+The existing Render Blueprint uses `render.yaml`. It defines one free-tier Docker web service. Review the current plan before upgrading. The CPU-only PyTorch image includes the five bundled models; it never downloads datasets at startup. No persistent disk is needed.
 
 Set `ALLOWED_ORIGINS` to comma-separated **exact** frontend origins, including scheme, without trailing slashes. Initially use your expected Vercel project domain; update it once assigned. Never use `*`. Set `SENTRY_DSN` to a backend project DSN, or leave it empty to disable monitoring. Set `RELEASE` for each release (a Git commit or version).
 
 Keep one instance and one worker. Sessions, imports, Playground models and traces live in this process. Deploys/restarts intentionally expire them. Render's health check is `GET /health`, which returns `{"status":"ok"}` only after startup finishes loading bundled models. Use HTTPS for public traffic.
 
-The container disables access logs and proxy-header trust. Rate limiting uses the socket peer: behind Render's proxy, limits may be shared between visitors. This is conservative for a small demo. Do not enable unrestricted forwarded-header trust to work around it; a future trusted edge rate limiter should replace this before increasing traffic limits.
+The container disables access logs and proxy-header trust. Rate limiting uses the socket peer: behind Render's proxy, limits may be shared between visitors. Session capacity is bounded at 64, and the least recently used inactive session is reclaimed when full. A reclaimed visitor can retry with a fresh session, but their imported models and traces are lost. This is suitable for a small demo, not robust abuse prevention. Do not enable unrestricted forwarded-header trust; use a trusted edge rate limiter and revisit session storage before inviting substantial traffic.
 
 ## 2. Frontend on Vercel
 
@@ -35,6 +35,8 @@ Set Preview variables separately: `VITE_API_URL`, `VITE_APP_ENV=preview`, `VITE_
 Add exact preview origins to Render's `ALLOWED_ORIGINS`. For frequent previews, use a stable Vercel branch alias and add it once, or maintain the allowlist for each generated preview URL. Preview frontend deployment is automatic after Git integration; CORS for newly generated origins requires this configuration. A separate staging backend is preferable if production availability matters. Do not grant CORS to every `vercel.app` tenant.
 
 Redeploy after changing build-time frontend variables. Navigation uses `#/visualizer` and `#/playground`. Direct `/visualizer` and `/playground` URLs also have Vercel fallback rewrites.
+
+The frontend Content Security Policy in `vercel.json` currently permits the live Render API and optional PostHog/Sentry ingestion hosts. If the backend URL or telemetry host changes, update `connect-src` and redeploy; otherwise the browser will block those requests. Interactive API docs are available in local development but disabled in production.
 
 ## 3. Verify the deployed release
 

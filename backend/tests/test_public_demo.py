@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 import backend.main as server
-from backend.runtime import Sessions, ServiceError, deadline, check_deadline, compute_slot, sessions
+from backend.runtime import MAX_SESSIONS, Sessions, ServiceError, deadline, check_deadline, compute_slot, sessions
 from backend.monitoring import scrub_event
 
 SPEC = json.loads(Path('examples/tiny-model.json').read_text())
@@ -80,6 +80,50 @@ def test_expiration_discards_only_owned_memory():
     with pytest.raises(ServiceError, match='expired'):
         store.get(token)
     assert list(models) == ['built-in'] and not traces
+
+def test_session_cap_recycles_oldest_idle_session_and_its_data():
+    store = Sessions()
+    models, traces = {'built-in': object(), 'old-model': object()}, {'old-trace': object()}
+    store.bind(models, traces)
+    tokens = [store.create() for _ in range(MAX_SESSIONS)]
+    recently_used = tokens[0]
+    oldest = tokens[1]
+    store.items[oldest].models.add('old-model')
+    store.items[oldest].traces.add('old-trace')
+    store.get(recently_used)  # Recently used sessions are moved to the back.
+    next_token = store.create()
+    assert next_token in store.items and recently_used in store.items
+    assert oldest not in store.items
+    assert list(models) == ['built-in'] and not traces
+    with pytest.raises(ServiceError, match='expired'):
+        store.get(oldest)
+
+def test_active_sessions_cannot_be_recycled():
+    store = Sessions()
+    store.bind({}, {})
+    tokens = [store.create() for _ in range(MAX_SESSIONS)]
+    for token in tokens:
+        store.enter(token)
+    with pytest.raises(ServiceError) as exc:
+        store.create()
+    assert exc.value.code == 'SERVICE_BUSY'
+    store.leave(tokens[0])
+    store.create()
+    assert tokens[0] not in store.items
+
+def test_interactive_docs_are_local_only():
+    assert (server.app.docs_url is None) == server.PRODUCTION
+    assert (server.app.openapi_url is None) == server.PRODUCTION
+
+def test_frontend_policy_blocks_inline_scripts_and_limits_api_destinations():
+    deployment = json.loads(Path('vercel.json').read_text())
+    headers = deployment['headers'][0]['headers']
+    policy = next(header['value'] for header in headers if header['key'] == 'Content-Security-Policy')
+    assert "script-src 'self'" in policy
+    assert "script-src 'self' 'unsafe-inline'" not in policy
+    assert "object-src 'none'" in policy
+    assert "frame-ancestors 'none'" in policy
+    assert 'https://neuralscope-api-24v5.onrender.com' in policy
 
 def test_deadline_is_cooperative_and_returns_stable_error(visitors, monkeypatch):
     a, _ = visitors

@@ -46,7 +46,10 @@ async def lifespan(app):
         except asyncio.CancelledError:
             pass
 
-app = FastAPI(title='NeuralScope', version='1.0.0', lifespan=lifespan)
+app = FastAPI(title='NeuralScope', version='1.0.0', lifespan=lifespan,
+              docs_url=None if PRODUCTION else '/docs',
+              redoc_url=None if PRODUCTION else '/redoc',
+              openapi_url=None if PRODUCTION else '/openapi.json')
 lock = RLock()
 REQUEST_TIMEOUT_SECONDS = 20
 TRAIN_TIMEOUT_SECONDS = 90
@@ -100,6 +103,7 @@ async def limit_body(request, call_next):
     acquired = False
     owner_token = deadline_token = None
     session_cookie = None
+    held_session = None
     admission = inspection_slots if category in ('focus', 'neuron') else compute_slot
     try:
         peer = request.client.host if request.client else 'unknown'
@@ -112,7 +116,8 @@ async def limit_body(request, call_next):
             if not token and not PRODUCTION:
                 token = sessions.create()
                 session_cookie = token
-            sessions.get(token)
+            sessions.enter(token)
+            held_session = token
             owner_token = owner.set(token)
         if category in ('run', 'import', 'train', 'focus', 'neuron'):
             acquired = admission.acquire(blocking=False)
@@ -135,12 +140,15 @@ async def limit_body(request, call_next):
             response = await asyncio.wait_for(asyncio.shield(task), timeout=max(.01, deadline.get() - monotonic()))
         except (asyncio.TimeoutError, asyncio.CancelledError):
             if acquired:
-                def finish(completed):
+                def finish(completed, session_token=held_session):
                     admission.release()
+                    if session_token:
+                        sessions.leave(session_token)
                     if not completed.cancelled():
                         completed.exception()
                 task.add_done_callback(finish)
                 acquired = False
+                held_session = None
             raise
     except ServiceError as exc:
         response = failure(request, exc.code, exc.message, exc.status, exc.retry_after)
@@ -152,6 +160,8 @@ async def limit_body(request, call_next):
     finally:
         if acquired:
             admission.release()
+        if held_session:
+            sessions.leave(held_session)
         if owner_token is not None:
             owner.reset(owner_token)
         if deadline_token is not None:
