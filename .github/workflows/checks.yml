@@ -58,7 +58,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser smoke tests
         run: npm run test:browser --prefix frontend
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: browser-failure
