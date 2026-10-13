@@ -57,3 +57,19 @@ test('unavailable startup preserves guides, keyboard access, offline recovery, a
   await page.getByRole('button', {name: 'Close privacy notice'}).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });
+
+test('a waking backend reconnects without a manual retry', async ({page}) => {
+  let healthAttempts = 0, modelAttempts = 0;
+  const recoveryAt = Date.now() + 2000;
+  await page.route('http://127.0.0.1:8001/**', route => {
+    if (route.request().url().endsWith('/health')) healthAttempts++;
+    if (route.request().url().endsWith('/demo-models')) modelAttempts++;
+    return Date.now() < recoveryAt ? route.abort() : route.continue();
+  });
+  await page.goto('/#/visualizer');
+  await expect(page.getByText('Service not ready', {exact: true})).toBeVisible();
+  await expect(page.getByText('Service ready', {exact: true})).toBeVisible({timeout: 20000});
+  await expect(page.getByRole('button', {name: 'Run forward pass', exact: true})).toBeEnabled({timeout: 20000});
+  expect(healthAttempts).toBeGreaterThan(0);
+  expect(modelAttempts).toBeGreaterThan(1);
+});

@@ -10,6 +10,9 @@ import secrets
 PRODUCTION = os.getenv('APP_ENV', 'development') == 'production'
 SESSION_TTL = int(os.getenv('SESSION_TTL_SECONDS', '1800'))
 MAX_SESSIONS = 64
+MAX_CUSTOM_MODELS = 24
+MAX_TRACES = 32
+MAX_TRACE_BYTES = 32 * 1024 * 1024
 owner = ContextVar('owner', default='local')
 deadline = ContextVar('deadline', default=float('inf'))
 compute_slot = BoundedSemaphore(1)

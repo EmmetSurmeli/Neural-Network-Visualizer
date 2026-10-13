@@ -1,0 +1,40 @@
+name: Bug report
+description: Report a reproducible problem with the demo
+body:
+  - type: markdown
+    attributes:
+      value: "Please use only disposable example inputs. Do not include private model files, weights, exported traces, or personal data. For a security issue, follow SECURITY.md instead."
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where did it happen?
+      options:
+        - Visualizer
+        - Playground
+        - Model import
+        - Local setup
+        - Deployment
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the selected built-in model or a minimal synthetic JSON example.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual result
+    validations:
+      required: true
+  - type: input
+    id: request-id
+    attributes:
+      label: Request reference, if shown
+      description: This random reference helps find the server event without sharing inputs.
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device, or local OS

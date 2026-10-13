@@ -28,22 +28,39 @@ export default function Visualizer({handoff, active}: {handoff: PlaygroundHandof
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [stale, setStale] = useState(false);
   const request = useRequestState(), online = useOnline();
   const retryAction = useRef<() => void>(() => {});
+  const initialLoadFailed = useRef(false);
+  const initialAttempts = useRef(0), initialRetryTimer = useRef<number | undefined>(undefined);
   const latestRun = useRef<() => Promise<void>>(async () => {});
   const [showImportGuide, setShowImportGuide] = useState(false);
   const file = useRef<HTMLInputElement>(null), model = models.find(m => m.id === modelId);
   const appliedHandoff = useRef<number | null>(null);
   const isImage = model?.input_kind === 'image' || modelId === 'mnist-mlp';
   async function initialize() {
-    setLoading(true); request.start('Loading models and the default sample…'); retryAction.current = () => void initialize();
+    window.clearTimeout(initialRetryTimer.current);
+    initialLoadFailed.current = false;
+    setLoading(true); request.start(initialAttempts.current ? 'The service may be waking up. Loading models again…' : 'Loading models and the default sample…');
+    retryAction.current = () => {initialAttempts.current = 0; void initialize();};
     try {
       const m = await api.models(); setModels(m);
       const s = await api.samples(); setSamples(s);
       const seven = s.find(v => v.label === 7) ?? s[0];
       setSource(seven.pixels); setPixels(seven.pixels); setSample(seven.label);
-      request.success();
-    } catch (error) {request.fail(error, !!trace);} finally {setLoading(false);}
+      initialAttempts.current = 0; request.success();
+    } catch (error) {
+      initialLoadFailed.current = true; request.fail(error, !!trace);
+      if (navigator.onLine && initialAttempts.current < 7) {
+        const delay = Math.min(15000, 5000 + initialAttempts.current * 2500);
+        initialAttempts.current++;
+        initialRetryTimer.current = window.setTimeout(() => void initialize(), delay);
+      }
+    } finally {setLoading(false);}
   }
   useEffect(() => {void initialize();}, []);
+  useEffect(() => {
+    const recover = () => {if (initialLoadFailed.current) {window.clearTimeout(initialRetryTimer.current); void initialize();}};
+    window.addEventListener('service-available', recover);
+    return () => {window.clearTimeout(initialRetryTimer.current); window.removeEventListener('service-available', recover);};
+  }, []);
   useEffect(() => {
     if (!active) setPlaying(false);
   }, [active, setPlaying]);

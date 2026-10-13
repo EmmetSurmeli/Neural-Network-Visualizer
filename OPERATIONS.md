@@ -2,13 +2,13 @@
 
 ## Health and failure recovery
 
-`GET /health` returns `{"status":"ok"}` after models load during service startup. It does not expose framework versions or internal paths. The frontend checks readiness on startup, reconnect and retry; it does not poll continuously. The service can be ready while its single computation slot is busy.
+`GET /health` returns `{"status":"ok"}` after models load during service startup. It does not expose framework versions or internal paths. The frontend checks readiness on startup and reconnect, retries a failed startup for a bounded period, and offers manual Retry afterward. It does not poll continuously. The service can be ready while its single computation slot is busy.
 
 API responses carry `X-Request-ID`. Errors use `{ "error": { "code": "...", "message": "...", "request_id": "..." } }`; a legacy `detail` string is also present. Responses never include stack traces. The UI displays the request reference so it can be matched to structured server logs. It retains the last successful result and labels it stale when a newer run fails.
 
 | Condition | Recovery |
 |---|---|
-| Service unavailable / cold start | Wait for Render health, then Retry; the shell and format guide remain visible |
+| Service unavailable / cold start | The page retries briefly while the service wakes; use Retry if it still has not recovered. The shell and format guide remain visible. |
 | Browser offline | Reconnect; live controls are disabled while offline |
 | 429 `RATE_LIMITED` | Respect `Retry-After`; the retry button counts down |
 | 503 `SERVICE_BUSY` | Another operation or temporary storage cap; retry after the suggested delay |
@@ -23,8 +23,8 @@ API responses carry `X-Request-ID`. Errors use `{ "error": { "code": "...", "mes
 - One process/worker/instance. One concurrent inference, import or training operation. Four concurrent inspection requests; registry access is locked. Requests do not form an unbounded computation queue.
 - Request-body cap: 8 MB and 10 seconds to read. Server operation deadline: 20 seconds; training: 90 seconds. Browser deadlines: 25 seconds, health 10 seconds, training 100 seconds. Session creation has its own bounded request.
 - PyTorch native work cannot be forcibly killed safely in a thread. A timed-out computation retains its admission slot until it ends. Training checks a deadline each epoch; inference checks before caching. These are response and cooperative deadlines, not an OS-enforced CPU kill switch. Restart the service if native work gets stuck.
-- 64 visitor sessions; 30-minute idle expiration, with least recently used sessions reclaimed sooner at capacity when no request is in flight. 64 custom models globally; eight imports and latest Playground model per session. The built-ins are not charged to import limits.
-- Up to 16 traces per session, 128 globally, plus a 128 MB input/output tensor-cache cap. Model weights retained by cached traces consume additional memory. Choose an instance with headroom; monitor RSS under realistic imports before increasing limits.
+- 64 visitor sessions; 30-minute idle expiration, with least recently used sessions reclaimed sooner at capacity when no request is in flight. 24 custom models globally; eight imports and latest Playground model per session. The built-ins are not charged to import limits.
+- Up to 16 traces per session, 32 globally, plus a 32 MB input/output tensor-cache cap. Model weights retained by cached traces consume additional memory. These caps leave more headroom on the current 512 MB Render free instance; monitor RSS under realistic imports before increasing them.
 - Per socket peer per minute: 60 runs, 12 imports, 6 training requests, 20 session operations, 240 API requests overall. Maximum 4,096 active rate buckets. Reverse-proxy peers can cause visitors to share limits. Health checks are exempt.
 - Import: safe Sequential JSON only, 24 layers, 500,000 parameters, 4,096 inputs, 1,024 outputs per Linear layer; finite values with magnitude ≤1,000,000. Images must be normalized to [0,1]. No pickle, raw checkpoints, ONNX, Python or arbitrary code uploads.
 

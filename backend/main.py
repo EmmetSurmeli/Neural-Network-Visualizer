@@ -24,7 +24,7 @@ from backend.instrumentation.visualization import focused_visualization
 from backend.schemas.requests import ModelSpec, RunRequest
 from backend.services.models import from_spec, summarize_spec
 from backend.services.playground import PlaygroundConfig, Dataset, dataset_payload, train_model
-from backend.runtime import sessions, owner, deadline, check_deadline, compute_slot, inspection_slots, limiter, ServiceError, PRODUCTION, SESSION_TTL
+from backend.runtime import sessions, owner, deadline, check_deadline, compute_slot, inspection_slots, limiter, ServiceError, PRODUCTION, SESSION_TTL, MAX_CUSTOM_MODELS, MAX_TRACES, MAX_TRACE_BYTES
 from backend.monitoring import initialize as initialize_monitoring, report
 
 torch.set_num_threads(2)
@@ -254,7 +254,7 @@ def execute(request: RunRequest, demo_only=False):
                 session.traces.remove(oldest)
             def cache_bytes():
                 return sum(t.numel() * t.element_size() for entries in traces.values() for item in entries for t in (item['input'], item['output']))
-            while len(traces) > 128 or cache_bytes() > 128 * 1024 * 1024:
+            while len(traces) > MAX_TRACES or cache_bytes() > MAX_TRACE_BYTES:
                 traces.popitem(last=False)
         return dict(trace, trace_id=trace_id, model_id=model_id, classes=info.get('classes'))
 
@@ -275,7 +275,7 @@ def playground_train(config: PlaygroundConfig):
     with lock:
         session = sessions.current()
         session.models.intersection_update(models)
-        if len(models) - len(IDS) >= 64 and not any(k.startswith('playground-') for k in session.models):
+        if len(models) - len(IDS) >= MAX_CUSTOM_MODELS and not any(k.startswith('playground-') for k in session.models):
             raise ServiceError('SERVICE_BUSY', 'Temporary model storage is full. Please retry later.', retry_after=30)
         try:
             model, result = train_model(config)
@@ -298,7 +298,7 @@ def upload_model(spec: ModelSpec):
         session.models.intersection_update(models)
         if sum(not key.startswith('playground-') for key in session.models) >= 8:
             raise HTTPException(409, 'Eight imported models are supported per session. Clear your temporary session to import more.')
-        if len(models) - len(IDS) >= 64:
+        if len(models) - len(IDS) >= MAX_CUSTOM_MODELS:
             raise ServiceError('SERVICE_BUSY', 'Temporary model storage is full. Please retry later.', retry_after=30)
         try:
             model = from_spec(spec)
